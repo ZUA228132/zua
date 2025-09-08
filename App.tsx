@@ -10,8 +10,6 @@ const ADMIN_TELEGRAM_ID = 7264453091;
 const AdminView: React.FC = () => {
     const { t, setLanguage } = useTranslation();
     React.useEffect(()=>{ setLanguage('ru'); }, [setLanguage]);
-
-    const { t } = useTranslation();
     return (
         <div className="max-w-4xl mx-auto">
             <header className="flex justify-between items-center mb-6">
