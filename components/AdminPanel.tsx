@@ -3,10 +3,9 @@ import { supabase } from '../lib/supabase';
 import type { CollectedData, TelegramUser } from '../types';
 import { UserIcon, VideoIcon, PassportIcon } from './icons';
 
-// —————————————————————————————————————
-// Вспомогательные UI-компоненты (только русский)
-// —————————————————————————————————————
-
+/** =========================
+ *  ВСПОМОГАТЕЛЬНЫЕ UI
+ *  ========================= */
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="rounded-2xl border border-white/10 bg-tg-bg/30 overflow-hidden">
     <div className="px-4 py-2 bg-tg-bg/40 text-sm font-semibold text-tg-hint border-b border-white/10">{title}</div>
@@ -14,18 +13,16 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
   </div>
 );
 
-const PrettyKV: React.FC<{ obj: Record<string, any>; pick?: string[] }> = ({ obj, pick }) => {
+const PrettyKV: React.FC<{ obj: Record<string, any> | null | undefined; pick?: string[] }> = ({ obj, pick }) => {
   if (!obj) return <div className="text-tg-hint">—</div>;
   const keys = (pick ?? Object.keys(obj)).filter((k) => obj[k] !== undefined && obj[k] !== null);
   if (keys.length === 0) return <div className="text-tg-hint">—</div>;
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {keys.map((k) => (
         <div key={k} className="flex justify-between gap-4 text-sm">
           <span className="text-tg-hint">{k}</span>
-          <span className="font-mono break-all text-tg-text/90">
-            {typeof obj[k] === 'object' ? JSON.stringify(obj[k]) : String(obj[k])}
-          </span>
+          <span className="font-mono break-all text-tg-text/90">{typeof obj[k] === 'object' ? JSON.stringify(obj[k]) : String(obj[k])}</span>
         </div>
       ))}
     </div>
@@ -33,12 +30,9 @@ const PrettyKV: React.FC<{ obj: Record<string, any>; pick?: string[] }> = ({ obj
 };
 
 const PrettyJSON: React.FC<{ data: any }> = ({ data }) => (
-  <pre className="text-xs bg-black/20 rounded-xl p-3 overflow-auto max-h-80 border border-white/10">
-    {JSON.stringify(data, null, 2)}
-  </pre>
+  <pre className="text-xs bg-black/20 rounded-xl p-3 overflow-auto max-h-80 border border-white/10">{JSON.stringify(data, null, 2)}</pre>
 );
 
-// Читаемое представление ключевых метаполей
 const MetaList: React.FC<{ meta: any }> = ({ meta }) => {
   if (!meta) return <div className="text-tg-hint">—</div>;
   const rows: Array<[string, any]> = [
@@ -54,9 +48,8 @@ const MetaList: React.FC<{ meta: any }> = ({ meta }) => {
     ['Query ID', meta?.query_id],
     ['Auth date', meta?.auth_date],
   ].filter(([, v]) => v !== undefined && v !== null);
-
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {rows.map(([k, v]) => (
         <div key={k} className="flex justify-between gap-4 text-sm">
           <span className="text-tg-hint">{k}</span>
@@ -67,11 +60,54 @@ const MetaList: React.FC<{ meta: any }> = ({ meta }) => {
   );
 };
 
-// —————————————————————————————————————
-// Кнопка уведомления пользователя (через /api/notify)
-// —————————————————————————————————————
+/** =========================
+ *  НОРМАЛИЗАЦИЯ СТРОК
+ *  ========================= */
+type Row = CollectedData & {
+  status?: string;
+  session_id?: string;
+  meta?: any;
+  video_url?: string | null;
+  videoUrl?: string | null;
+  passport_url?: string | null;
+  passportUrl?: string | null;
+  user_id?: string | number | null;
+};
 
-const NotifyUserButton: React.FC<{ data: CollectedData }> = ({ data }) => {
+function normalizeRow(r: Row) {
+  const video =
+    r.video_url ??
+    (r as any).videoUrl ??
+    r.meta?.video_url ??
+    null;
+
+  const passport =
+    r.passport_url ??
+    (r as any).passportUrl ??
+    r.meta?.passport_url ??
+    null;
+
+  const uid =
+    (r.telegram_user as any)?.id ??
+    r.user_id ??
+    r.meta?.user_id ??
+    null;
+
+  const status = (r as any).status ?? r.meta?.status ?? 'partial';
+
+  return {
+    ...r,
+    _video: video,
+    _passport: passport,
+    _uid: uid ? String(uid) : 'unknown',
+    _status: status,
+  };
+}
+
+/** =========================
+ *  КНОПКА УВЕДОМЛЕНИЙ
+ *  ========================= */
+const NotifyUserButton: React.FC<{ data: any }> = ({ data }) => {
   const [sending, setSending] = React.useState(false);
   const [statusMsg, setStatusMsg] = React.useState<string | null>(null);
 
@@ -83,14 +119,14 @@ const NotifyUserButton: React.FC<{ data: CollectedData }> = ({ data }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: data.telegram_user?.id,
-          status: (data as any).status || 'partial',
+          user_id: data.telegram_user?.id || data._uid,
+          status: data._status || 'partial',
           language_code: (data.telegram_user as any)?.language_code || 'ru',
         }),
       });
       if (!res.ok) throw new Error(await res.text());
       setStatusMsg('Уведомление отправлено');
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
       setStatusMsg('Не удалось отправить уведомление');
     } finally {
@@ -104,7 +140,7 @@ const NotifyUserButton: React.FC<{ data: CollectedData }> = ({ data }) => {
       <button
         onClick={send}
         disabled={sending}
-        className="px-3 py-1 rounded-lg bg-tg-button text-tg-button-text text-sm disabled:opacity-50"
+        className="px-3 py-2 rounded-lg bg-tg-button text-tg-button-text text-sm disabled:opacity-50"
       >
         {sending ? 'Отправка…' : 'Уведомить пользователя'}
       </button>
@@ -113,56 +149,46 @@ const NotifyUserButton: React.FC<{ data: CollectedData }> = ({ data }) => {
   );
 };
 
-// —————————————————————————————————————
-// Карточка одной заявки
-// —————————————————————————————————————
-
-const AdminCard: React.FC<{ data: CollectedData }> = ({ data }) => {
-  const meta: any = (data as any).meta ?? {};
+/** =========================
+ *  КАРТОЧКА ЗАЯВКИ
+ *  ========================= */
+const AdminCard: React.FC<{ data: any }> = ({ data }) => {
+  const meta: any = data.meta ?? {};
   const tu: TelegramUser | undefined = data.telegram_user;
 
   return (
     <div className="bg-tg-secondary-bg/50 border border-white/10 rounded-2xl shadow-xl overflow-hidden backdrop-blur-sm">
       <div className="p-4 bg-tg-bg/30 border-b border-white/10">
-        <div className="flex items-center space-x-4">
-          <UserIcon className="w-10 h-10 text-tg-link" />
-          <div>
-            <h3 className="font-bold text-xl text-tg-text">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <UserIcon className="w-8 h-8 sm:w-10 sm:h-10 text-tg-link" />
+          <div className="min-w-0">
+            <h3 className="font-bold text-base sm:text-xl text-tg-text truncate">
               {tu?.first_name} {tu?.last_name || ''}
             </h3>
-            <p className="text-sm text-tg-hint">
+            <p className="text-xs sm:text-sm text-tg-hint truncate">
               @{tu?.username || 'N/A'} (ID: {tu?.id})
             </p>
           </div>
           <div className="ml-auto text-xs text-tg-hint">
             Статус:{' '}
-            <span
-              className={
-                (data as any).status === 'submitted'
-                  ? 'text-green-400'
-                  : 'text-yellow-300'
-              }
-            >
-              {(data as any).status || 'partial'}
+            <span className={data._status === 'submitted' ? 'text-green-400' : 'text-yellow-300'}>
+              {data._status}
             </span>
           </div>
         </div>
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Блок медиа */}
         <Section title="Медиа">
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="text-xs text-tg-hint mb-1 flex items-center gap-2">
                 <VideoIcon className="w-4 h-4" /> Видео-верификация
               </div>
-              {data.video_url ? (
-                <video
-                  controls
-                  src={data.video_url}
-                  className="w-full rounded-lg border border-white/10"
-                />
+              {data._video ? (
+                <div className="aspect-video w-full rounded-lg overflow-hidden border border-white/10">
+                  <video controls preload="metadata" src={data._video} className="w-full h-full object-contain" />
+                </div>
               ) : (
                 <div className="text-tg-hint text-sm">Нет видео.</div>
               )}
@@ -171,12 +197,10 @@ const AdminCard: React.FC<{ data: CollectedData }> = ({ data }) => {
               <div className="text-xs text-tg-hint mb-1 flex items-center gap-2">
                 <PassportIcon className="w-4 h-4" /> Фото паспорта/ID
               </div>
-              {data.passport_url ? (
-                <img
-                  src={data.passport_url}
-                  alt="Passport"
-                  className="w-full rounded-lg border border-white/10 object-contain"
-                />
+              {data._passport ? (
+                <div className="aspect-video w-full rounded-lg overflow-hidden border border-white/10 bg-black/20 flex items-center justify-center">
+                  <img src={data._passport} alt="Passport" className="w-full h-full object-contain" />
+                </div>
               ) : (
                 <div className="text-tg-hint text-sm">Нет изображения.</div>
               )}
@@ -184,28 +208,23 @@ const AdminCard: React.FC<{ data: CollectedData }> = ({ data }) => {
           </div>
         </Section>
 
-        {/* Профиль и заявка */}
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Section title="Профиль Telegram">
-            <PrettyKV
-              obj={tu as any}
-              pick={['id', 'username', 'first_name', 'last_name', 'language_code', 'is_premium']}
-            />
+            <PrettyKV obj={tu as any} pick={['id', 'username', 'first_name', 'last_name', 'language_code', 'is_premium']} />
           </Section>
           <Section title="Заявка">
             <PrettyKV
               obj={{
                 id: data.id,
-                статус: (data as any).status || 'partial',
+                статус: data._status || 'partial',
                 дата: data.submission_date,
-                video_url: data.video_url,
-                passport_url: data.passport_url,
+                video_url: data._video || null,
+                passport_url: data._passport || null,
               }}
             />
           </Section>
         </div>
 
-        {/* Метаданные */}
         <Section title="Окружение Telegram">
           <MetaList meta={meta} />
         </Section>
@@ -217,14 +236,13 @@ const AdminCard: React.FC<{ data: CollectedData }> = ({ data }) => {
   );
 };
 
-// —————————————————————————————————————
-// Основная админ-панель
-// —————————————————————————————————————
-
+/** =========================
+ *  ОСНОВНАЯ АДМИН-ПАНЕЛЬ
+ *  ========================= */
 export const AdminPanel: React.FC = () => {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [allUserData, setAllUserData] = React.useState<CollectedData[]>([]);
+  const [rows, setRows] = React.useState<any[]>([]);
 
   React.useEffect(() => {
     const fetchSubmissions = async () => {
@@ -239,26 +257,26 @@ export const AdminPanel: React.FC = () => {
         console.error('Error fetching submissions:', error);
         setError(error.message);
       } else {
-        setAllUserData((data || []) as CollectedData[]);
+        const normalized = (data ?? []).map(normalizeRow);
+        setRows(normalized);
       }
       setLoading(false);
     };
     fetchSubmissions();
   }, []);
 
-  // Группировка по пользователю
+  // группировка по _uid
   const grouped = React.useMemo(() => {
-    const acc: Record<string, CollectedData[]> = {};
-    for (const item of allUserData) {
-      const uid = item.telegram_user?.id ? String(item.telegram_user.id) : 'unknown';
-      (acc[uid] = acc[uid] || []).push(item);
+    const acc: Record<string, any[]> = {};
+    for (const item of rows) {
+      (acc[item._uid] = acc[item._uid] || []).push(item);
     }
     return acc;
-  }, [allUserData]);
+  }, [rows]);
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6">
-      <h2 className="text-3xl font-bold text-center text-tg-text drop-shadow-lg">Админ-панель — Заявки</h2>
+    <div className="w-full max-w-4xl mx-auto space-y-6 px-3 sm:px-0">
+      <h2 className="text-2xl sm:text-3xl font-bold text-center text-tg-text drop-shadow-lg">Админ-панель — Заявки</h2>
 
       {loading && <div className="text-center p-12 text-tg-hint text-lg">Загрузка заявок…</div>}
       {error && (
@@ -272,25 +290,29 @@ export const AdminPanel: React.FC = () => {
           <div className="space-y-8">
             {Object.entries(grouped).map(([uid, items]) => {
               const head = items[0];
-              const tu = head.telegram_user;
+              const tu: TelegramUser | undefined = head.telegram_user;
               return (
                 <div key={uid} className="space-y-4">
-                  {/* Шапка группы */}
-                  <div className="sticky top-0 z-10 backdrop-blur bg-tg-secondary-bg/60 border border-white/10 rounded-xl px-4 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <UserIcon className="w-6 h-6 text-tg-link" />
-                      <div className="text-sm">
-                        <div className="text-tg-text font-semibold">
+                  {/* шапка группы */}
+                  <div className="sticky top-0 z-10 backdrop-blur bg-tg-secondary-bg/60 border border-white/10 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <UserIcon className="w-6 h-6 text-tg-link flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-tg-text font-semibold truncate">
                           {tu?.first_name} {tu?.last_name || ''}{' '}
                           <span className="text-tg-hint">@{tu?.username || 'N/A'}</span>
                         </div>
-                        <div className="text-tg-hint">ID: <span className="font-mono">{uid}</span> • заявок: {items.length}</div>
+                        <div className="text-tg-hint text-sm truncate">
+                          ID: <span className="font-mono">{uid}</span> • заявок: {items.length}
+                        </div>
                       </div>
                     </div>
-                    <NotifyUserButton data={head} />
+                    <div className="flex-shrink-0">
+                      <NotifyUserButton data={head} />
+                    </div>
                   </div>
 
-                  {/* Список карточек заявок пользователя */}
+                  {/* список карточек */}
                   <div className="space-y-6">
                     {items.map((it) => (
                       <AdminCard key={it.id} data={it} />
