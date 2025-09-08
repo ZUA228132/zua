@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useTelegram } from '../hooks/useTelegram';
 import { useTranslation } from '../lib/i18n';
-import { TelegramDataDisplay } from './TelegramDataDisplay';
+import { TelegramDataDisplay } from './DataCollectionSteps';
 import { VideoVerification, PassportCapture } from './DataCollectionSteps';
 
 export const UserForm: React.FC = () => {
