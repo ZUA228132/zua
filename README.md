@@ -1,20 +1,89 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 🔞 Age Verification Bot for Telegram  
 
-# Run and deploy your AI Studio app
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)  
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)  
+[![Issues](https://img.shields.io/github/issues/username/age-verification-bot.svg)](https://github.com/username/age-verification-bot/issues)  
+[![Stars](https://img.shields.io/github/stars/username/age-verification-bot.svg)](https://github.com/username/age-verification-bot/stargazers)  
 
-This contains everything you need to run your app locally.
+Проект для автоматической проверки возраста пользователей в Telegram-боте.  
+Полезен для сообществ, где требуется ограничение доступа по возрасту (18+).  
 
-View your app in AI Studio: https://ai.studio/apps/drive/1v8ICmCxGdbLkl4sl_bUQQY4iPLgyTkBC
+---
 
-## Run Locally
+## ✨ Возможности  
+- 📌 Проверка возраста пользователя при входе в бота или чат  
+- 🔐 Поддержка разных методов верификации (дата рождения, документы, API)  
+- ⚡ Простая настройка и интеграция  
+- 🛠 Кастомизация под любые сценарии  
 
-**Prerequisites:**  Node.js
+---
 
+## 🚀 Установка и запуск  
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+# Клонируем репозиторий
+git clone https://github.com/username/age-verification-bot.git
+cd age-verification-bot
+
+# Устанавливаем зависимости
+pip install -r requirements.txt
+
+# Запускаем бота
+python bot.py
+```
+
+---
+
+## ⚙️ Настройка  
+
+1. Создай бота через [@BotFather](https://t.me/BotFather).  
+2. Получи `TELEGRAM_BOT_TOKEN`.  
+3. Укажи его в `.env` файле:  
+
+```
+TELEGRAM_BOT_TOKEN=your_token_here
+```
+
+---
+
+## 📚 Использование  
+
+- Добавь бота в чат/канал  
+- Настрой правила проверки возраста  
+- Готово! 🚀  
+
+---
+
+## 🧩 Технологии  
+
+- [Python 3.x](https://www.python.org/)  
+- [python-telegram-bot](https://python-telegram-bot.org/)  
+- (опционально) API для верификации документов  
+
+---
+
+## 🗺️ Roadmap  
+
+- [x] Базовая проверка возраста  
+- [x] Настройка токена и конфигурации  
+- [ ] Локализация (многоязычность)  
+- [ ] Интеграция с внешними API для верификации документов  
+- [ ] Админ-панель для управления  
+
+---
+
+## 🎥 Демонстрация  
+
+![Demo](demo.gif)  
+
+---
+
+## 🤝 Контрибьютинг  
+
+Буду рад Pull Request'ам, багрепортам и идеям 💡  
+
+---
+
+## 📄 Лицензия  
+
+MIT License © 2025  
