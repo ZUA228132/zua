@@ -5,11 +5,10 @@ import { useTranslation } from '../lib/i18n';
 import { TelegramDataDisplay, VideoVerification, PassportCapture } from './DataCollectionSteps';
 
 /**
- * UserForm — фиксированная версия
- * - правильное получение publicUrl из Supabase (data.publicUrl)
- * - авто-уведомления юзеру и медиa админу после отправки
- * - язык интерфейса подстраивается под language_code пользователя
- * - переход: video -> passport -> done
+ * UserForm — фиксированная версия (v2)
+ * - правильный publicUrl (fallback на signedUrl на 1 год)
+ * - сохраняем video_url в БД гарантированно
+ * - передаём video_url админу в notify
  */
 export const UserForm: React.FC = () => {
   const {
@@ -25,14 +24,13 @@ export const UserForm: React.FC = () => {
   const [partialId, setPartialId] = useState<string | null>(null);
   const [step, setStep] = useState<'video' | 'passport' | 'done'>('video');
 
-  // язык под юзера (без переключателя)
   useEffect(() => {
     const code = (user?.language_code || 'ru').toLowerCase();
     const map: Record<string, 'ru'|'uk'|'en'> = { ru:'ru', be:'ru', uk:'uk', en:'en', kk:'ru', uz:'ru' };
     setLanguage(map[code] || 'ru');
   }, [user, setLanguage]);
 
-  // создаём "мусорную" запись сразу при входе
+  // создаём частичную запись
   useEffect(() => {
     const init = async () => {
       try {
@@ -60,39 +58,68 @@ export const UserForm: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // авто-загрузка видео
+  // ────────────────────────────────────────────────
+  // ВИДЕО: заливаем, получаем URL (public или подписанный), сохраняем в БД
+  // ────────────────────────────────────────────────
   useEffect(() => {
     const run = async () => {
       if (!videoBlob || !partialId) return;
-      const videoFileName = `public/${user.id}_${Date.now()}.webm`;
-      const up = await supabase.storage.from('videos').upload(videoFileName, videoBlob);
-      if (!up.error) {
-        const { data: v } = supabase.storage.from('videos').getPublicUrl(videoFileName);
-        const videoUrl = v?.publicUrl || null;
-        if (videoUrl) {
-          await supabase.from('submissions').update({ video_url: videoUrl }).eq('id', partialId);
-        }
-        setStep('passport'); // после видео → шаг паспорт
+      const fileKey = `public/${user.id}_${Date.now()}.webm`;
+
+      const up = await supabase.storage.from('videos').upload(fileKey, videoBlob, { contentType: 'video/webm' });
+      if (up.error) { console.warn('video upload error', up.error); return; }
+
+      let videoUrl: string | null = null;
+      // пробуем publicUrl
+      const { data: pub } = supabase.storage.from('videos').getPublicUrl(fileKey);
+      if (pub?.publicUrl) {
+        videoUrl = pub.publicUrl;
+      } else {
+        // fallback: подписанный URL на 365 дней
+        const sign = await supabase.storage.from('videos').createSignedUrl(fileKey, 60 * 60 * 24 * 365);
+        if (!sign.error) videoUrl = sign.data?.signedUrl ?? null;
       }
+
+      if (!videoUrl) { console.warn('no videoUrl after upload'); return; }
+
+      const upd = await supabase.from('submissions').update({ video_url: videoUrl }).eq('id', partialId);
+      if (upd.error) { console.warn('update video_url error', upd.error); }
+
+      setStep('passport'); // после видео → шаг паспорт
     };
     run();
   }, [videoBlob, partialId, user?.id]);
 
-  // авто-загрузка паспорта, финализация и уведомления
+  // ────────────────────────────────────────────────
+  // ПАСПОРТ: заливаем, сохраняем URL, шлём уведомления
+  // ────────────────────────────────────────────────
   useEffect(() => {
     const run = async () => {
       if (!passportImageBlob || !partialId) return;
-      const passportFileName = `public/${user.id}_${Date.now()}.png`;
-      const up = await supabase.storage.from('passports').upload(passportFileName, passportImageBlob);
-      if (up.error) return;
+      const fileKey = `public/${user.id}_${Date.now()}.png`;
 
-      const { data: p } = supabase.storage.from('passports').getPublicUrl(passportFileName);
-      const passportUrl = p?.publicUrl || null;
+      const up = await supabase.storage.from('passports').upload(fileKey, passportImageBlob, { contentType: 'image/png' });
+      if (up.error) { console.warn('passport upload error', up.error); return; }
 
-      // 1) обновляем заявку
-      await supabase.from('submissions').update({ passport_url: passportUrl, status: 'submitted' }).eq('id', partialId);
+      let passportUrl: string | null = null;
+      const { data: pub } = supabase.storage.from('passports').getPublicUrl(fileKey);
+      if (pub?.publicUrl) passportUrl = pub.publicUrl;
+      else {
+        const sign = await supabase.storage.from('passports').createSignedUrl(fileKey, 60 * 60 * 24 * 365);
+        if (!sign.error) passportUrl = sign.data?.signedUrl ?? null;
+      }
 
-      // 2) уведомление пользователю (его язык)
+      const upd = await supabase.from('submissions').update({ passport_url: passportUrl, status: 'submitted' }).eq('id', partialId);
+      if (upd.error) { console.warn('update passport_url error', upd.error); }
+
+      // подтягиваем video_url из базы (на случай если предыдущий апдейт не прошёл)
+      let videoUrl: string | null = null;
+      try {
+        const row = await supabase.from('submissions').select('video_url').eq('id', partialId).single();
+        if (!row.error) videoUrl = row.data?.video_url ?? null;
+      } catch {}
+
+      // уведомление пользователю
       try {
         await fetch('/api/notify', {
           method: 'POST',
@@ -104,25 +131,21 @@ export const UserForm: React.FC = () => {
             status: 'submitted'
           })
         });
-      } catch (e) {
-        console.warn('notify user failed', e);
-      }
+      } catch (e) { console.warn('notify user failed', e); }
 
-      // 3) медиа админу (если ADMIN_CHAT_ID задан либо передадим явно на сервер позже)
+      // медиа админу (и видео, и фото)
       try {
         await fetch('/api/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             send_media: true,
-            text: `Новая заявка (submitted) от ${user?.id}${user?.username ? ' @' + user.username : ''}`,
-            video_url: null,
+            text: `Новая заявка от ${user?.id}${user?.username ? ' @' + user.username : ''}`,
+            video_url: videoUrl,
             photo_url: passportUrl
           })
         });
-      } catch (e) {
-        console.warn('notify admin media failed', e);
-      }
+      } catch (e) { console.warn('notify admin media failed', e); }
 
       setIsSubmitted(true);
       setStep('done');
@@ -130,9 +153,7 @@ export const UserForm: React.FC = () => {
     run();
   }, [passportImageBlob, partialId, user?.id, user?.language_code, user?.username]);
 
-  const closeApp = () => {
-    try { (window as any)?.Telegram?.WebApp?.close(); } catch {}
-  };
+  const closeApp = () => { try { (window as any)?.Telegram?.WebApp?.close(); } catch {} };
 
   return (
     <div className="p-4 py-4">
@@ -156,10 +177,7 @@ export const UserForm: React.FC = () => {
         <div className="text-center p-8 bg-green-500/10 border border-green-500/30 rounded-2xl mt-6">
           <h3 className="text-2xl font-bold text-green-400">{t('successSubmittedTitle') || 'Заявка отправлена'}</h3>
           <p className="text-tg-hint mt-2">{t('successSubmittedMessage') || 'Ваша заявка успешно отправлена на обработку.'}</p>
-          <button
-            onClick={closeApp}
-            className="mt-4 px-4 py-2 rounded-lg bg-tg-button text-tg-button-text text-sm"
-          >
+          <button onClick={closeApp} className="mt-4 px-4 py-2 rounded-lg bg-tg-button text-tg-button-text text-sm">
             {t('closeButton') || 'Закрыть'}
           </button>
         </div>
