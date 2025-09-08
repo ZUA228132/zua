@@ -49,6 +49,32 @@ const AdminCard: React.FC<{ data: CollectedData }> = ({ data }) => {
                     </div>
                 </div>
                 <div className="p-4 grid gap-4">
+                  <Section title="Submission">
+                    <PrettyKV obj={{ id: data.id, status: (data as any).status, submission_date: data.submission_date }} />
+                  </Section>
+                  <Section title="Media">
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-xs text-tg-hint mb-1">Video</div>
+                        {data.video_url ? (<video src={data.video_url} controls className="w-full rounded-xl border border-white/10" />) : (<div className="text-tg-hint">—</div>)}
+                      </div>
+                      <div>
+                        <div className="text-xs text-tg-hint mb-1">Passport</div>
+                        {data.passport_url ? (<img src={data.passport_url} className="w-full rounded-xl border border-white/10" />) : (<div className="text-tg-hint">—</div>)}
+                      </div>
+                    </div>
+                  </Section>
+                  <Section title="Environment">
+                    <PrettyKV obj={(data as any).meta} pick={["platform","version","colorScheme","isExpanded","viewportHeight","viewportStableHeight","themeParams"]} />
+                  </Section>
+                  <Section title="Init Data">
+                    <PrettyKV obj={(data as any).meta} pick={["chat","receiver","chat_type","chat_instance","start_param","query_id","auth_date"]} />
+                  </Section>
+                  <Section title="Full Meta (JSON)">
+                    <PrettyJSON data={(data as any).meta} />
+                  </Section>
+                </div>
+                <div className="p-4 grid gap-4">
                   <Section title="Telegram User (raw)">
                     <PrettyKV obj={data.telegram_user as any} pick={["id","username","first_name","last_name","language_code","is_premium"]} />
                   </Section>

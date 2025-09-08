@@ -20,4 +20,7 @@ export interface CollectedData {
   video_url: string | null;
   passport_url: string | null;
   submission_date: string;
+  status?: string;
+  session_id?: string;
+  meta?: any;
 }
