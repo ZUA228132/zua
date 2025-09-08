@@ -157,7 +157,7 @@ interface I18nContextType {
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguage] = useState<Language>('uk');
+  const [language, setLanguage] = useState<Language>('ru');
 
   const t = useMemo(() => (key: keyof Translations): string => {
     return resources[language][key] || resources['en'][key];

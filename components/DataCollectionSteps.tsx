@@ -27,6 +27,8 @@ export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void
     const [error, setError] = useState<string | null>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const timerRef = useRef<number | null>(null);
+    const stoppingRef = useRef(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const recordedChunks = useRef<Blob[]>([]);
 
@@ -45,25 +47,20 @@ export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void
     }, [stream]);
 
     const startRecording = async () => {
+        if (isRecording || stoppingRef.current) return;
         setError(null);
         setVideoUrl(null);
         recordedChunks.current = [];
         try {
-            const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user' },
-                audio: false 
-            });
+            const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
             setStream(mediaStream);
-            if (videoRef.current) {
-                videoRef.current.srcObject = mediaStream;
-            }
+            videoRef.current!.srcObject = mediaStream;
 
-            const recorder = new MediaRecorder(mediaStream);
+            const recorder = new MediaRecorder(mediaStream, { mimeType: 'video/webm;codecs=vp9,opus' });
             mediaRecorderRef.current = recorder;
-            recorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    recordedChunks.current.push(event.data);
-                }
+
+            recorder.ondataavailable = (e: BlobEvent) => {
+                if (e.data && e.data.size > 0) recordedChunks.current.push(e.data);
             };
             recorder.onstop = () => {
                 const blob = new Blob(recordedChunks.current, { type: 'video/webm' });
@@ -71,10 +68,18 @@ export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void
                 setVideoUrl(url);
                 onVideoRecorded(blob);
                 cleanup();
+                stoppingRef.current = false;
             };
+
             recorder.start();
             setIsRecording(true);
-            setTimeout(stopRecording, 5000);
+
+            // hard stop after 5s
+            if (timerRef.current) window.clearTimeout(timerRef.current);
+            timerRef.current = window.setTimeout(() => {
+                stopRecording();
+            }, 5000);
+
         } catch (err) {
             console.error("Camera access denied:", err);
             setError(t('cameraError'));
@@ -83,6 +88,20 @@ export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void
     };
 
     const stopRecording = () => {
+        if (stoppingRef.current) return;
+        stoppingRef.current = true;
+        if (timerRef.current) { window.clearTimeout(timerRef.current); timerRef.current = null; }
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop();
+        }
+        setIsRecording(false);
+    };
+
+    window.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') stopRecording();
+    });
+    
+     () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
             mediaRecorderRef.current.stop();
             setIsRecording(false);
@@ -222,7 +241,12 @@ export const PassportCapture: React.FC<{ onImageCaptured: (blob: Blob) => void }
                 {capturedImage && <CheckCircleIcon className="w-8 h-8 text-green-400" />}
             </div>
 
-            <div className="w-full aspect-video bg-black/50 rounded-lg flex items-center justify-center border-2 border-dashed border-transparent overflow-hidden relative">
+            <div className="w-full aspect-video relative"
+                >
+                {isRecording && (
+                  <div className="absolute inset-0 bg-black/50 text-white flex items-center justify-center text-sm z-10">Идёт запись видео — съёмка паспорта недоступна</div>
+                )}
+                <div className="w-full aspect-video bg-black/50 rounded-lg flex items-center justify-center border-2 border-dashed border-transparent overflow-hidden relative">
                 {capturedImage ? (
                     <img src={capturedImage} alt="Passport Preview" className="w-full h-full object-contain" />
                 ) : (

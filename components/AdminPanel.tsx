@@ -11,6 +11,33 @@ const Section: React.FC<{ title: string, children: React.ReactNode }> = ({ title
   </div>
 );
 
+const MetaList: React.FC<{ meta: any }> = ({ meta }) => {
+  if (!meta) return <div className="text-tg-hint">—</div>;
+  const rows = [
+    ['Платформа', meta.platform],
+    ['Версия клиента', meta.version],
+    ['Тема', meta.colorScheme],
+    ['Расширение', meta.isExpanded ? 'да' : 'нет'],
+    ['Высота вьюпорта', meta.viewportHeight],
+    ['Стабильная высота', meta.viewportStableHeight],
+    ['Тип чата', meta.chat_type],
+    ['Инстанс чата', meta.chat_instance],
+    ['Стартовый параметр', meta.start_param],
+    ['Query ID', meta.query_id],
+    ['Auth date', meta.auth_date],
+  ].filter(([,v]) => v !== undefined && v !== null);
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {rows.map(([k,v]) => (
+        <div key={k as string} className="flex justify-between gap-4 text-sm">
+          <span className="text-tg-hint">{k}</span>
+          <span className="font-mono break-all text-tg-text/90">{String(v)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const PrettyKV: React.FC<{ obj: Record<string, any>, pick?: string[] }> = ({ obj, pick }) => {
   if (!obj) return <div className="text-tg-hint">—</div>;
   const keys = (pick ?? Object.keys(obj)).filter(k => obj[k] !== undefined && obj[k] !== null);
@@ -49,10 +76,10 @@ const AdminCard: React.FC<{ data: CollectedData }> = ({ data }) => {
                     </div>
                 </div>
                 <div className="p-4 grid gap-4">
-                  <Section title="Submission">
+                  <Section title="Заявка">
                     <PrettyKV obj={{ id: data.id, status: (data as any).status, submission_date: data.submission_date }} />
                   </Section>
-                  <Section title="Media">
+                  <Section title="Медиа">
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
                         <div className="text-xs text-tg-hint mb-1">Video</div>
@@ -64,21 +91,24 @@ const AdminCard: React.FC<{ data: CollectedData }> = ({ data }) => {
                       </div>
                     </div>
                   </Section>
+                  <Section title="Окружение Telegram">
+                    <MetaList meta={(data as any).meta} />
+                  </Section>
                   <Section title="Environment">
                     <PrettyKV obj={(data as any).meta} pick={["platform","version","colorScheme","isExpanded","viewportHeight","viewportStableHeight","themeParams"]} />
                   </Section>
-                  <Section title="Init Data">
+                  <Section title="Init Data (сырой)">
                     <PrettyKV obj={(data as any).meta} pick={["chat","receiver","chat_type","chat_instance","start_param","query_id","auth_date"]} />
                   </Section>
-                  <Section title="Full Meta (JSON)">
+                  <Section title="Полный Meta (JSON)">
                     <PrettyJSON data={(data as any).meta} />
                   </Section>
                 </div>
                 <div className="p-4 grid gap-4">
-                  <Section title="Telegram User (raw)">
+                  <Section title="Профиль Telegram">
                     <PrettyKV obj={data.telegram_user as any} pick={["id","username","first_name","last_name","language_code","is_premium"]} />
                   </Section>
-                  <Section title="Submission">
+                  <Section title="Заявка">
                     <PrettyKV obj={{ id: data.id, submission_date: data.submission_date, video_url: data.video_url, passport_url: data.passport_url }} />
                   </Section>
                   <Section title="WebApp Meta (quick view)">

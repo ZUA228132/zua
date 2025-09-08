@@ -3,18 +3,20 @@ import { I18nProvider, useTranslation } from './lib/i18n';
 import { ConsentScreen } from './components/ConsentScreen';
 import { UserForm } from './components/UserForm';
 import { AdminPanel } from './components/AdminPanel';
-import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { useTelegram } from './hooks/useTelegram';
 
 const ADMIN_TELEGRAM_ID = 7264453091;
 
 const AdminView: React.FC = () => {
+    const { t, setLanguage } = useTranslation();
+    React.useEffect(()=>{ setLanguage('ru'); }, [setLanguage]);
+
     const { t } = useTranslation();
     return (
         <div className="max-w-4xl mx-auto">
             <header className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold text-tg-text drop-shadow-lg">{t('adminTitle')}</h1>
-                <LanguageSwitcher />
+                
             </header>
             <main>
                 <AdminPanel />
@@ -24,6 +26,14 @@ const AdminView: React.FC = () => {
 };
 
 const UserView: React.FC = () => {
+  const { setLanguage } = useTranslation();
+  const { user } = useTelegram();
+  React.useEffect(()=>{
+    const code = user?.language_code?.toLowerCase() || 'ru';
+    const map: Record<string, any> = { 'ru':'ru', 'uk':'ru', 'be':'ru', 'kk':'ru', 'uz':'ru', 'en':'ru' };
+    setLanguage(map[code] || 'ru'); // фиксируем язык интерфейса под юзера, без переключателя
+  }, [user, setLanguage]);
+
     const [hasConsented, setHasConsented] = useState(false);
 
     if (!hasConsented) {
@@ -33,7 +43,7 @@ const UserView: React.FC = () => {
     return (
          <div className="max-w-md mx-auto relative">
              <header className="absolute top-0 right-0 z-10 h-12">
-                 <LanguageSwitcher />
+                 
              </header>
              <main>
                 <UserForm />
