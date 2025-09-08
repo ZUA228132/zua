@@ -3,9 +3,11 @@ import type { TelegramUser } from '../types';
 import { useTranslation } from '../lib/i18n';
 import { PassportIcon, CheckCircleIcon, VideoIcon, CameraIcon } from './icons';
 
-// —————————————————————————————————————
-// 0) Данные Telegram (шапка формы)
-// —————————————————————————————————————
+/**
+ * ──────────────────────────────────────────────────────────────────────────────
+ * 0) Шапка с данными Telegram
+ * ──────────────────────────────────────────────────────────────────────────────
+ */
 export const TelegramDataDisplay: React.FC<{ user: TelegramUser | null }> = ({ user }) => {
   const { t } = useTranslation();
   return (
@@ -21,9 +23,11 @@ export const TelegramDataDisplay: React.FC<{ user: TelegramUser | null }> = ({ u
   );
 };
 
-// —————————————————————————————————————
-// 1) Шаг видео (ровно 5 секунд)
-// —————————————————————————————————————
+/**
+ * ──────────────────────────────────────────────────────────────────────────────
+ * 1) Шаг видео (ровно 5 секунд)
+ * ──────────────────────────────────────────────────────────────────────────────
+ */
 export const VideoVerification: React.FC<{
   onVideoRecorded: (blob: Blob) => void;
   onRecordingChange?: (rec: boolean) => void;
@@ -54,9 +58,7 @@ export const VideoVerification: React.FC<{
     if (videoRef.current) videoRef.current.srcObject = null;
   };
 
-  useEffect(() => {
-    return () => cleanup();
-  }, []);
+  useEffect(() => () => cleanup(), []);
 
   const stopRecording = () => {
     if (stoppingRef.current) return;
@@ -150,7 +152,6 @@ export const VideoVerification: React.FC<{
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <VideoIcon className="w-6 h-6 text-tg-link" />
-          <h3 className="font-semibold text-tg-text">{t('videoVerificationTitle')}</h3>
         </div>
         {videoUrl && <CheckCircleIcon className="w-8 h-8 text-green-400" />}
       </div>
@@ -187,9 +188,11 @@ export const VideoVerification: React.FC<{
   );
 };
 
-// —————————————————————————————————————
-// 2) Шаг фото паспорта
-// —————————————————————————————————————
+/**
+ * ──────────────────────────────────────────────────────────────────────────────
+ * 2) Шаг фото паспорта
+ * ──────────────────────────────────────────────────────────────────────────────
+ */
 export const PassportCapture: React.FC<{
   onImageCaptured: (blob: Blob) => void;
   recording?: boolean;
@@ -257,7 +260,6 @@ export const PassportCapture: React.FC<{
   useEffect(() => {
     startCamera();
     return () => cleanup();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -265,7 +267,6 @@ export const PassportCapture: React.FC<{
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <PassportIcon className="w-6 h-6 text-tg-link" />
-          <h3 className="font-semibold text-tg-text">{t('passportUploadTitle')}</h3>
         </div>
         {capturedImage && <CheckCircleIcon className="w-8 h-8 text-green-400" />}
       </div>
@@ -281,9 +282,7 @@ export const PassportCapture: React.FC<{
           {capturedImage ? (
             <img src={capturedImage} alt="Passport Preview" className="w-full h-full object-contain" />
           ) : (
-            <>
-              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
-            </>
+            <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
           )}
         </div>
       </div>
@@ -293,7 +292,7 @@ export const PassportCapture: React.FC<{
 
       <button
         onClick={capturedImage ? startCamera : capturePhoto}
-        disabled={recording || (!streamRef.current && !capturedImage)}
+        disabled={recording} // ← только когда идёт запись видео
         className="w-full py-3 px-4 font-semibold rounded-lg transition-all duration-300 text-lg bg-tg-button text-tg-button-text hover:bg-opacity-90 disabled:opacity-50 flex items-center justify-center space-x-2"
       >
         <CameraIcon className="w-6 h-6" />
