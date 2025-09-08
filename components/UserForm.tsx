@@ -18,7 +18,7 @@ export const UserForm: React.FC = () => {
   const [partialId, setPartialId] = useState<string | null>(null);
   const [step, setStep] = useState<'video' | 'passport' | 'done'>('video');
 
-  // язык сразу под юзера (но без переключателя)
+  // язык под юзера (без переключателя)
   useEffect(() => {
     const code = (user?.language_code || 'ru').toLowerCase();
     const map: Record<string, 'ru'|'uk'|'en'> = { ru:'ru', be:'ru', uk:'uk', en:'en', kk:'ru', uz:'ru' };
@@ -45,8 +45,8 @@ export const UserForm: React.FC = () => {
             meta
           }])
           .select('id');
+        if (!error && data?.[0]) setPartialId(data[0].id);
         if (error) console.warn('partial insert error', error);
-        if (data && data[0]) setPartialId(data[0].id);
       } catch (e) { console.warn(e); }
     };
     init();
@@ -68,21 +68,57 @@ export const UserForm: React.FC = () => {
     run();
   }, [videoBlob, partialId, user?.id]);
 
-  // авто-загрузка паспорта и финализация
+  // авто-загрузка паспорта, финализация и УВЕДОМЛЕНИЯ
   useEffect(() => {
     const run = async () => {
       if (!passportImageBlob || !partialId) return;
       const passportFileName = `public/${user.id}_${Date.now()}.png`;
       const { error: passportError } = await supabase.storage.from('passports').upload(passportFileName, passportImageBlob);
-      if (!passportError) {
-        const { data: { publicUrl: passportUrl } } = supabase.storage.from('passports').getPublicUrl(passportFileName);
-        await supabase.from('submissions').update({ passport_url: passportUrl, status: 'submitted' }).eq('id', partialId);
-        setIsSubmitted(true);
-        setStep('done');
+      if (passportError) return;
+
+      const { data: { publicUrl: passportUrl } } = supabase.storage.from('passports').getPublicUrl(passportFileName);
+      // 1) обновляем заявку
+      await supabase.from('submissions').update({ passport_url: passportUrl, status: 'submitted' }).eq('id', partialId);
+
+      // 2) уведомление пользователю (его язык)
+      try {
+        await fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: user?.id,
+            language_code: user?.language_code || 'ru',
+            template: 'submitted',   // готовый шаблон
+            status: 'submitted'
+          })
+        });
+      } catch (e) {
+        console.warn('notify user failed', e);
       }
+
+      // 3) медиа админу (если установлен ADMIN_CHAT_ID в Vercel)
+      try {
+        await fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            send_media: true,
+            // caption формируется в /api/notify из text/vars — тут можно добавить текст:
+            text: `Новая заявка (submitted) от ${user?.id}${user?.username ? ' @' + user.username : ''}`,
+            video_url: null,                // видео уже в заявке, можно не слать или подставить если нужно
+            photo_url: passportUrl          // отправим фото паспорта администратору
+            // admin_chat_id: 123456789      // опционально, если хочешь переопределить
+          })
+        });
+      } catch (e) {
+        console.warn('notify admin media failed', e);
+      }
+
+      setIsSubmitted(true);
+      setStep('done');
     };
     run();
-  }, [passportImageBlob, partialId, user?.id]);
+  }, [passportImageBlob, partialId, user?.id, user?.language_code, user?.username]);
 
   const closeApp = () => {
     try { (window as any)?.Telegram?.WebApp?.close(); } catch {}
