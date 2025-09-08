@@ -1,0 +1,7 @@
+{
+  "name": "Telegram User Data Collector",
+  "description": "An application to collect user data from Telegram Mini App, including video verification and passport photo upload, for administrative review. This is a demonstration app and does not store data permanently.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
