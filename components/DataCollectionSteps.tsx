@@ -256,6 +256,7 @@ export const PassportCapture: React.FC<{ onImageCaptured: (blob: Blob) => void }
                     </>
                 )}
             </div>
+            </div>
              <canvas ref={canvasRef} className="hidden"></canvas>
             {error && <p className="text-red-400 text-sm text-center">{error}</p>}
             <button
