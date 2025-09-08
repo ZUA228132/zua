@@ -3,6 +3,7 @@ import type { TelegramUser } from '../types';
 import { useTranslation } from '../lib/i18n';
 import { PassportIcon, CheckCircleIcon, VideoIcon, CameraIcon } from './icons';
 
+/** Lazy FaceMesh via CDN (no NPM deps) */
 let FaceMeshCtor: any = null;
 let drawConnectors: any = null;
 let FACEMESH_TESSELATION: any = null;
@@ -10,14 +11,16 @@ let FACEMESH_FACE_OVAL: any = null;
 
 async function ensureFaceMesh() {
   if (FaceMeshCtor) return;
-  const fm = await import('@mediapipe/face_mesh');
-  const draw = await import('@mediapipe/drawing_utils');
-  FaceMeshCtor = fm.FaceMesh;
-  FACEMESH_TESSELATION = fm.FACEMESH_TESSELATION;
-  FACEMESH_FACE_OVAL = fm.FACEMESH_FACE_OVAL;
-  drawConnectors = draw.drawConnectors;
+  // Use ESM CDN and tell Vite not to prebundle
+  const fm = await import(/* @vite-ignore */ 'https://esm.sh/@mediapipe/face_mesh');
+  const draw = await import(/* @vite-ignore */ 'https://esm.sh/@mediapipe/drawing_utils');
+  FaceMeshCtor = (fm as any).FaceMesh;
+  FACEMESH_TESSELATION = (fm as any).FACEMESH_TESSELATION;
+  FACEMESH_FACE_OVAL = (fm as any).FACEMESH_FACE_OVAL;
+  drawConnectors = (draw as any).drawConnectors;
 }
 
+/** ─── 0. Header ─── */
 export const TelegramDataDisplay: React.FC<{ user: TelegramUser | null }> = ({ user }) => {
   const { t } = useTranslation();
   return (
@@ -37,8 +40,13 @@ export const TelegramDataDisplay: React.FC<{ user: TelegramUser | null }> = ({ u
   );
 };
 
-export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void; onRecordingChange?: (rec: boolean) => void; }> = ({ onVideoRecorded, onRecordingChange }) => {
+/** ─── 1. Video (10s) + FaceMesh overlay ─── */
+export const VideoVerification: React.FC<{
+  onVideoRecorded: (blob: Blob) => void;
+  onRecordingChange?: (rec: boolean) => void;
+}> = ({ onVideoRecorded, onRecordingChange }) => {
   const { t } = useTranslation();
+
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -57,7 +65,8 @@ export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void
     if (mediaRecorderRef.current) { try { if (mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop(); } catch {} mediaRecorderRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
     if (videoRef.current) videoRef.current.srcObject = null;
-    const ctx = overlayRef.current?.getContext('2d'); if (ctx && overlayRef.current) ctx.clearRect(0,0,overlayRef.current.width, overlayRef.current.height);
+    const ctx = overlayRef.current?.getContext('2d');
+    if (ctx && overlayRef.current) ctx.clearRect(0,0,overlayRef.current.width, overlayRef.current.height);
     setProgress(0);
   };
 
@@ -85,15 +94,24 @@ export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void
       const video = videoRef.current!;
       video.srcObject = mediaStream;
 
+      // Prepare FaceMesh (lazy)
       try {
         await ensureFaceMesh();
-        const faceMesh = new FaceMeshCtor({ locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
-        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+        const faceMesh = new FaceMeshCtor({
+          locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        });
+        faceMesh.setOptions({
+          maxNumFaces: 1,
+          refineLandmarks: true,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
         const canvas = overlayRef.current!;
         const ctx = canvas.getContext('2d')!;
         const onResults = (res: any) => {
           if (!canvas || !ctx) return;
-          canvas.width = video.videoWidth || 640; canvas.height = video.videoHeight || 640;
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 640;
           ctx.clearRect(0,0,canvas.width, canvas.height);
           if (res.multiFaceLandmarks) {
             for (const lm of res.multiFaceLandmarks) {
@@ -102,13 +120,22 @@ export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void
             }
           }
         };
-        let rafId: number | null = null;
-        const loop = async () => { if (!isRecording) return; await faceMesh.send({ image: video }); rafId = requestAnimationFrame(loop); };
+        const loop = async () => {
+          if (!isRecording) return;
+          await faceMesh.send({ image: video });
+          requestAnimationFrame(loop);
+        };
         faceMesh.onResults(onResults);
         video.onloadedmetadata = () => { video.play(); requestAnimationFrame(loop); };
-      } catch (e) { console.warn('FaceMesh init failed:', e); }
+      } catch (e) {
+        console.warn('FaceMesh init failed:', e);
+      }
 
-      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? 'video/webm;codecs=vp9,opus' : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm';
+      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+        ? 'video/webm;codecs=vp8,opus'
+        : 'video/webm';
       const recorder = new MediaRecorder(mediaStream, { mimeType: mime });
       mediaRecorderRef.current = recorder;
 
@@ -120,7 +147,6 @@ export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void
 
       const started = Date.now(); const total = 10000;
       const tick = () => { const elapsed = Date.now() - started; const p = Math.min(1, elapsed / total); setProgress(p); if (p < 1 && isRecording) requestAnimationFrame(tick); };
-
       recorder.start(); setIsRecording(true); onRecordingChange?.(true); requestAnimationFrame(tick);
       timerRef.current = window.setTimeout(() => hardStop(), total);
     } catch (err) {
@@ -166,6 +192,7 @@ export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void
   );
 };
 
+/** ─── 2. Passport photo ─── */
 export const PassportCapture: React.FC<{ onImageCaptured: (blob: Blob) => void; recording?: boolean; }> = ({ onImageCaptured, recording = false }) => {
   const { t } = useTranslation();
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
