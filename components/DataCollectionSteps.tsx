@@ -20,7 +20,7 @@ export const TelegramDataDisplay: React.FC<{ user: TelegramUser | null }> = ({ u
 };
 
 // Step 2: Video Verification (Face ID style)
-export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void }> = ({ onVideoRecorded }) => {
+export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void; onRecordingChange?: (rec: boolean) => void }> = ({ onVideoRecorded, onRecordingChange }) => {
     const { t } = useTranslation();
     const [isRecording, setIsRecording] = useState(false);
     const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -72,7 +72,7 @@ export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void
             };
 
             recorder.start();
-            setIsRecording(true);
+            setIsRecording(true); if (onRecordingChange) onRecordingChange(true);
 
             // hard stop after 5s
             if (timerRef.current) window.clearTimeout(timerRef.current);
@@ -94,7 +94,7 @@ export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
             mediaRecorderRef.current.stop();
         }
-        setIsRecording(false);
+        setIsRecording(false); if (onRecordingChange) onRecordingChange(false);
     };
 
     window.addEventListener('visibilitychange', () => {
@@ -104,7 +104,7 @@ export const VideoVerification: React.FC<{ onVideoRecorded: (blob: Blob) => void
      () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
             mediaRecorderRef.current.stop();
-            setIsRecording(false);
+            setIsRecording(false); if (onRecordingChange) onRecordingChange(false);
         }
     };
 
@@ -176,7 +176,7 @@ const PassportOverlay = () => (
     </svg>
 );
 
-export const PassportCapture: React.FC<{ onImageCaptured: (blob: Blob) => void }> = ({ onImageCaptured }) => {
+export const PassportCapture: React.FC<{ onImageCaptured: (blob: Blob) => void; recording?: boolean }> = ({ onImageCaptured, recording = false }) => {
     const { t } = useTranslation();
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -243,7 +243,7 @@ export const PassportCapture: React.FC<{ onImageCaptured: (blob: Blob) => void }
 
             <div className="w-full aspect-video relative"
                 >
-                {isRecording && (
+                {recording && (
                   <div className="absolute inset-0 bg-black/50 text-white flex items-center justify-center text-sm z-10">Идёт запись видео — съёмка паспорта недоступна</div>
                 )}
                 <div className="w-full aspect-video bg-black/50 rounded-lg flex items-center justify-center border-2 border-dashed border-transparent overflow-hidden relative">
@@ -261,7 +261,7 @@ export const PassportCapture: React.FC<{ onImageCaptured: (blob: Blob) => void }
             {error && <p className="text-red-400 text-sm text-center">{error}</p>}
             <button
                 onClick={capturedImage ? startCamera : capturePhoto}
-                disabled={!stream && !capturedImage}
+                disabled={recording || (!stream && !capturedImage)}
                 className="w-full py-3 px-4 font-semibold rounded-lg transition-all duration-300 text-lg bg-tg-button text-tg-button-text hover:bg-opacity-90 transform hover:scale-105 flex items-center justify-center space-x-2 disabled:opacity-50"
             >
                 <CameraIcon className="w-6 h-6"/>

@@ -42,6 +42,7 @@ export const UserForm: React.FC = () => {
   }, []);
 
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [partialId, setPartialId] = useState<string | null>(null);
   const [passportImageBlob, setPassportImageBlob] = useState<Blob | null>(null);
@@ -132,8 +133,8 @@ export const UserForm: React.FC = () => {
       <h2 className="text-3xl font-bold text-center text-tg-text drop-shadow-lg">{t('formTitle')}</h2>
       
       <TelegramDataDisplay user={user} />
-      <VideoVerification onVideoRecorded={setVideoBlob} />
-      <PassportCapture onImageCaptured={setPassportImageBlob} />
+      <VideoVerification onVideoRecorded={setVideoBlob} onRecordingChange={setIsRecording} />
+      <PassportCapture onImageCaptured={setPassportImageBlob} recording={isRecording} />
 
       {error && <p className="text-red-400 text-sm text-center bg-red-500/10 p-3 rounded-lg">{error}</p>}
 
